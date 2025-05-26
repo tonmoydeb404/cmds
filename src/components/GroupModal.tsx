@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { FolderPlus, X } from "lucide-react";
 import React, { useState } from "react";
 
 interface GroupModalProps {
@@ -21,8 +21,11 @@ const GroupModal: React.FC<GroupModalProps> = ({ onClose, onSubmit }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Create New Group</h2>
-          <button className="btn btn-icon" onClick={onClose}>
+          <h2>
+            <FolderPlus size={20} />
+            Create New Group
+          </h2>
+          <button className="btn btn-icon btn-secondary" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
@@ -35,7 +38,7 @@ const GroupModal: React.FC<GroupModalProps> = ({ onClose, onSubmit }) => {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter group name"
+              placeholder="Enter a descriptive name for your command group"
               autoFocus
               required
             />

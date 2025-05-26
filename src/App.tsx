@@ -1,5 +1,5 @@
-import { confirm } from "@tauri-apps/plugin-dialog";
-import { Edit, Play, PlayCircle, Plus, Trash2 } from "lucide-react";
+import { confirm, message } from "@tauri-apps/plugin-dialog";
+import { Download, Play, PlayCircle, Plus, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import "./App.css";
 import CommandModal from "./components/CommandModal";
@@ -14,7 +14,6 @@ function App() {
   const [isCommandModalOpen, setIsCommandModalOpen] = useState(false);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<CommandGroup | null>(null);
-  // const [editingGroup, setEditingGroup] = useState<CommandGroup | null>(null);
   const [executionResults, setExecutionResults] = useState<[string, string][]>(
     []
   );
@@ -40,6 +39,7 @@ function App() {
       setIsGroupModalOpen(false);
     } catch (error) {
       console.error("Failed to create group:", error);
+      await message("Failed to create group", "Error");
     }
   };
 
@@ -56,12 +56,13 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to delete group:", error);
+      await message("Failed to delete group", "Error");
     }
   };
 
   const handleExecuteGroup = async (group: CommandGroup) => {
     if (group.commands.length === 0) {
-      alert("No commands to execute in this group");
+      await message("No commands to execute in this group", "No Commands");
       return;
     }
 
@@ -72,21 +73,32 @@ function App() {
       setIsExecutionModalOpen(true);
     } catch (error) {
       console.error("Failed to execute group commands:", error);
-      alert("Failed to execute group commands");
+      await message("Failed to execute group commands", "Execution Error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddCommand = async (name: string, command: string) => {
+  const handleAddCommand = async (
+    name: string,
+    command: string,
+    isDetached: boolean = false
+  ) => {
     if (!selectedGroup) return;
 
     try {
-      await TauriAPI.addCommandToGroup(selectedGroup.id, name, command);
+      await TauriAPI.addCommandToGroup(
+        selectedGroup.id,
+        name,
+        command,
+        isDetached
+      );
       await loadGroups();
       setIsCommandModalOpen(false);
+      setSelectedGroup(null);
     } catch (error) {
       console.error("Failed to add command:", error);
+      await message("Failed to add command", "Error");
     }
   };
 
@@ -103,13 +115,16 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to delete command:", error);
+      await message("Failed to delete command", "Error");
     }
   };
 
   const handleExecuteCommand = async (command: CommandItem) => {
     try {
       setIsLoading(true);
-      const result = await TauriAPI.executeCommand(command.command);
+      const result = command.isDetached
+        ? await TauriAPI.executeCommandDetached(command.command)
+        : await TauriAPI.executeCommand(command.command);
       setExecutionResults([[command.name, result]]);
       setIsExecutionModalOpen(true);
     } catch (error) {
@@ -123,17 +138,75 @@ function App() {
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      const result = await TauriAPI.exportData();
+      await message(result, { title: "Export Successful", kind: "info" });
+    } catch (error) {
+      console.error("Failed to export data:", error);
+      await message("Failed to export data", "Export Error");
+    }
+  };
+
+  const handleImportData = async () => {
+    try {
+      // Create a hidden file input
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = async (event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (file) {
+          const text = await file.text();
+          try {
+            const result = await TauriAPI.importData(text);
+            await message(result, "Import Successful");
+            await loadGroups();
+          } catch (error) {
+            console.error("Failed to import data:", error);
+            await message(
+              "Failed to import data. Please check the file format.",
+              "Import Error"
+            );
+          }
+        }
+      };
+      input.click();
+    } catch (error) {
+      console.error("Failed to import data:", error);
+    }
+  };
+
   return (
     <div className="app">
       <header className="header">
         <h1>Command Group Manager</h1>
-        <button
-          className="btn btn-primary"
-          onClick={() => setIsGroupModalOpen(true)}
-        >
-          <Plus size={16} />
-          Create Group
-        </button>
+        <div className="header-actions">
+          <button
+            className="btn btn-secondary"
+            onClick={handleImportData}
+            title="Import command groups from JSON file"
+          >
+            <Upload size={16} />
+            Import
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleExportData}
+            title="Export command groups to JSON file"
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setIsGroupModalOpen(true)}
+            title="Create a new command group"
+          >
+            <Plus size={16} />
+            Create Group
+          </button>
+        </div>
       </header>
 
       <main className="main">
@@ -142,6 +215,13 @@ function App() {
             <p>
               No command groups yet. Create your first group to get started!
             </p>
+            <button
+              className="btn btn-primary"
+              onClick={() => setIsGroupModalOpen(true)}
+            >
+              <Plus size={16} />
+              Create Your First Group
+            </button>
           </div>
         ) : (
           <div className="groups-grid">
@@ -151,27 +231,27 @@ function App() {
                   <h3>{group.name}</h3>
                   <div className="group-actions">
                     <button
-                      className="btn btn-icon"
+                      className="btn btn-icon btn-secondary"
                       onClick={() => {
                         setSelectedGroup(group);
                         setIsCommandModalOpen(true);
                       }}
-                      title="Add Command"
+                      title="Add new command to this group"
                     >
-                      <Edit size={16} />
+                      <Plus size={16} />
                     </button>
                     <button
                       className="btn btn-icon btn-success"
                       onClick={() => handleExecuteGroup(group)}
                       disabled={isLoading || group.commands.length === 0}
-                      title="Execute All Commands"
+                      title="Execute all commands in this group"
                     >
                       <PlayCircle size={16} />
                     </button>
                     <button
                       className="btn btn-icon btn-danger"
                       onClick={() => handleDeleteGroup(group)}
-                      title="Delete Group"
+                      title="Delete this group and all its commands"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -180,12 +260,29 @@ function App() {
 
                 <div className="commands-list">
                   {group.commands.length === 0 ? (
-                    <p className="no-commands">No commands yet</p>
+                    <div className="no-commands">
+                      <p style={{ marginBottom: 10 }}>No commands yet</p>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => {
+                          setSelectedGroup(group);
+                          setIsCommandModalOpen(true);
+                        }}
+                      >
+                        <Plus size={14} />
+                        Add First Command
+                      </button>
+                    </div>
                   ) : (
                     group.commands.map((command) => (
                       <div key={command.id} className="command-item">
                         <div className="command-info">
-                          <h4>{command.name}</h4>
+                          <h4>
+                            {command.name}
+                            {command.isDetached && (
+                              <span className="detached-badge">Background</span>
+                            )}
+                          </h4>
                           <code>{command.command}</code>
                         </div>
                         <div className="command-actions">
@@ -193,7 +290,7 @@ function App() {
                             className="btn btn-icon btn-success"
                             onClick={() => handleExecuteCommand(command)}
                             disabled={isLoading}
-                            title="Execute Command"
+                            title="Execute this command"
                           >
                             <Play size={14} />
                           </button>
@@ -202,7 +299,7 @@ function App() {
                             onClick={() =>
                               handleDeleteCommand(group.id, command.id)
                             }
-                            title="Delete Command"
+                            title="Delete this command"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -217,6 +314,7 @@ function App() {
         )}
       </main>
 
+      {/* Modals */}
       {isGroupModalOpen && (
         <GroupModal
           onClose={() => setIsGroupModalOpen(false)}
@@ -242,9 +340,10 @@ function App() {
         />
       )}
 
+      {/* Loading Overlay */}
       {isLoading && (
         <div className="loading-overlay">
-          <div className="loading-spinner">Executing...</div>
+          <div className="loading-spinner">Executing commands...</div>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { AlertCircle, CheckCircle, Monitor, X } from "lucide-react";
 import React from "react";
 
 interface ExecutionModalProps {
@@ -10,6 +10,16 @@ const ExecutionModal: React.FC<ExecutionModalProps> = ({
   results,
   onClose,
 }) => {
+  const getResultIcon = (output: string) => {
+    if (
+      output.toLowerCase().includes("error") ||
+      output.toLowerCase().includes("failed")
+    ) {
+      return <AlertCircle size={16} style={{ color: "#ef4444" }} />;
+    }
+    return <CheckCircle size={16} style={{ color: "#10b981" }} />;
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -17,8 +27,12 @@ const ExecutionModal: React.FC<ExecutionModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2>Execution Results</h2>
-          <button className="btn btn-icon" onClick={onClose}>
+          <h2>
+            <Monitor size={20} />
+            Execution Results ({results.length} command
+            {results.length !== 1 ? "s" : ""})
+          </h2>
+          <button className="btn btn-icon btn-secondary" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
@@ -26,7 +40,10 @@ const ExecutionModal: React.FC<ExecutionModalProps> = ({
         <div className="modal-body execution-results">
           {results.map(([name, output], index) => (
             <div key={index} className="execution-result">
-              <h3>{name}</h3>
+              <h3>
+                {getResultIcon(output)}
+                {name}
+              </h3>
               <pre className="output">{output}</pre>
             </div>
           ))}
@@ -34,7 +51,7 @@ const ExecutionModal: React.FC<ExecutionModalProps> = ({
 
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={onClose}>
-            Close
+            Close Results
           </button>
         </div>
       </div>

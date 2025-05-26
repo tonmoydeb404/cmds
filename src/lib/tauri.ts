@@ -17,9 +17,15 @@ export class TauriAPI {
   static async addCommandToGroup(
     groupId: string,
     name: string,
-    command: string
+    command: string,
+    isDetached: boolean = false
   ): Promise<string> {
-    return await invoke("add_command_to_group", { groupId, name, command });
+    return await invoke("add_command_to_group", {
+      groupId,
+      name,
+      command,
+      isDetached,
+    });
   }
 
   static async deleteCommandFromGroup(
@@ -41,5 +47,13 @@ export class TauriAPI {
     groupId: string
   ): Promise<[string, string][]> {
     return await invoke("execute_group_commands", { groupId });
+  }
+
+  static async exportData(): Promise<string> {
+    return await invoke("export_data");
+  }
+
+  static async importData(data: string): Promise<string> {
+    return await invoke("import_data", { data });
   }
 }
